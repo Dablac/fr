@@ -72,9 +72,21 @@
             setTimeout(arguments.callee, 0);
         }
     })();    
+
+    function runAtLoad(cb){
+        if (document.readyState !== 'loading') cb(); else document.addEventTrigger('DOMContentLoaded', cb, false);
+    }
 }//====UTILITY====
 
 {//====PROTOTYPES====
+    EventTarget.prototype.addEventTrigger = function(type, handler, _bubble) {
+        var bubble = !!_bubble ? _bubble : false;
+        this.addEventListener(type, function(e) {
+            e.target.removeEventListener(e.type, arguments.callee, bubble);
+            return handler(e);
+        }, bubble);
+    };
+
     //RegExp, String or Index based slice
     String.prototype.cut = function(start, end, _includeIdentifiers){
         //includeIdentifiers = [true/false, true/false] to include the values found by the String/RegExp expression at 'start' and 'end' respectively.
@@ -175,12 +187,4 @@
         this.splice(index, _count);
         return this;
     };
-    
-    EventTarget.prototype.addOneShotListener = function(type, handler, _bubble) {
-    var bubble = !!_bubble ? _bubble : false;
-	this.addEventListener(type, function(e) {
-		e.target.removeEventListener(e.type, arguments.callee, bubble);
-		return handler(e);
-	}, bubble);
-};
 }//====PROTOTYPES====
