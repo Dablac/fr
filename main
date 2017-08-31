@@ -1,0 +1,186 @@
+{//====CONSTRUCTORS====
+
+    function RelativeAge(date){
+        this.delta = Math.abs(Date.now() - new Date(date).getTime()) / 1000;
+        this.days = Math.floor(this.delta / 86400);
+        this.delta -= this.days * 86400;
+        this.hours = Math.floor(this.delta / 3600) % 24;
+        this.delta -= this.hours * 3600;
+        this.minutes = Math.floor(this.delta / 60) % 60;
+        this.delta -= this.minutes * 60;
+        this.seconds = this.delta % 60;
+        this.read = function(){
+            return +this.days > 7 ? this.days+' days' : this.days+' days, '+this.hours+' hours.';
+        };
+    }
+
+    function MouseTracker(attached, offset){
+        this.x = null;
+        this.y = null;
+        this.handler = function(event){
+            this.x = event.pageX;
+            this.y = event.pageY;
+            inspectorDiv.style.left = (this.x + offset[0]) + 'px';
+            inspectorDiv.style.top = (this.y + offset[1])  + 'px';
+        }.bind(this);
+        window.addEventListener('mousemove', this.handler, false);
+    }
+
+    //LocalStorage pass by reference Object Constructor
+    function LocalStoreObject(name){
+        this.name = name;
+        this.save = function(){
+            localStorage['navi_'+this.name] = JSON.stringify(this);
+        };
+        this.load = function(){
+            if (!!localStorage['navi_'+this.name]){
+                Object.assign(this, JSON.parse(localStorage['navi_'+this.name]));
+            }
+        };
+        this.load();
+    }
+
+    //non-functioning wrapper intended to queue function calls and only execute them while the page is visible
+    function IsVisible(){
+        this.visible = document.visibilityState === 'visible';
+        this.queue = [];
+        this.add = function runOrQueue(func){
+            if (this.visible) func(); else this.queue.push(func);
+        };
+        this.processQueue = function(){
+            console.log('processQueue: this.visible = %o, this.queue = %o', this.visible, this.queue);
+            while (this.visible){
+                if (this.queue.length > 0){
+                    this.queue.shift()();
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', function(event){
+            this.visible = document.visibilityState === 'visible';
+            if (this.visible) this.processQueue();
+        }.bind(this), false);
+    }
+
+}//====CONSTRUCTORS====
+
+{//====UTILITY====
+    //Self-deleting recursive function
+    (function(){
+        try{
+            delete arguments.callee;
+        } catch(error){ 
+            setTimeout(arguments.callee, 0);
+        }
+    })();    
+}//====UTILITY====
+
+{//====PROTOTYPES====
+    //RegExp, String or Index based slice
+    String.prototype.cut = function(start, end, _includeIdentifiers){
+        //includeIdentifiers = [true/false, true/false] to include the values found by the String/RegExp expression at 'start' and 'end' respectively.
+        var includeIdentifiers = !!_includeIdentifiers ? _includeIdentifiers: [false, false];
+        var _start = null;
+        var _end = null;
+        switch (start.constructor){
+            case String: _start = !includeIdentifiers[0] ? this.indexOf(start)+start.length : this.indexOf(start);
+                break;
+            case Number: _start = start;
+                break;
+            case RegExp: 
+                let found = this.match(start);
+                _start = !includeIdentifiers[0] ? found.index+found[0].length : found.index;
+                break;
+        }
+        if (!!end){
+            switch (end.constructor){
+                case String: _end = !includeIdentifiers[1] ? this.indexOf(end, _start) : this.indexOf(end, _start)+end.length;
+                    break;
+                case Number: _end = end;
+                    break;
+                case RegExp:
+                    let found = this.match(end);
+                    _end = !includeIdentifiers[1] ? found.index : found.index+found[0].length;
+                    break;
+            }
+            return this.slice(_start, (+_end > 0 ? _end : this.length));
+        } else return this.slice(_start);
+    };
+
+    String.prototype.cut = function(start, end, includeEndString){
+        let _start = start.constructor === RegExp ? this.search(start)+this.match(start)[0].length : (start.constructor === String ? this.indexOf(start)+start.length : start);
+        if (!!end){
+            let _end = end.constructor === RegExp ? this.search(end) : (end.constructor === String ? (!includeEndString ? this.indexOf(end, _start) : this.indexOf(end, _start)+end.length) : end);
+            return this.slice(_start, (+_end > 0 ? _end : this.length));
+        } else return this.slice(_start);
+    };
+
+    String.prototype.splice = function spliceSlice(index, count, add) {
+        if (index < 0) {
+            index = this.length + index;
+            if (index < 0) {
+                index = 0;
+            }
+        }
+        return this.slice(0, index) + (add || "") + this.slice(index + count);
+    };
+
+    Element.prototype.cancel = function(){
+        this.querySelectorAll('[src]').forEach(function(e,i,a){
+            e.dataset.cancelledSrc = e.src;
+            e.src = '';
+        });
+    };
+
+    Element.prototype.uncancel = function(){
+        this.querySelectorAll('[cancelled-src]').forEach(function(e,i,a){
+            e.src = e.dataset.cancelledSrc;
+            e.dataset.cancelledSrc = '';
+        });
+    };
+
+    Element.prototype.detach = function(){
+        this.cancel();
+        return !!this.parentElement ? this.parentElement.removeChild(this) : this;
+    };
+
+    Element.prototype.insertAfter = function(newNode, referenceNode) {
+        referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
+    };
+
+    Element.prototype.attach = function(){
+        this.uncancel();
+        try{
+            var prev = null;
+            var next = null;
+            Array.prototype.slice.call(this.originalParent.children).forEach(function(e, i, a){
+                console.log(e.index, this.index);
+                if (e.index > this.index){ if (!next || e.index < next.index) next = e; } else prev = e;
+            }.bind(this));
+            if (!!prev) this.originalParent.insertAfter(this, prev); else this.originalParent.insertBefore(this, next);
+        }catch(error){
+            console.log('%o.attach() %o', this, error);
+        }
+    };
+
+    Element.prototype.addClass = function elementPrototypeAddClass(classToAdd){
+        if (!this.classList.contains(classToAdd)) this.classList.add(classToAdd);
+    };
+
+    Element.prototype.removeClass = function elementPrototypeRemoveClass(classToRemove){
+        if (this.classList.contains(classToRemove)) this.classList.remove(classToRemove);
+    };
+
+    Array.prototype.erase = function(index, count){
+        var _count = count || 1;
+        this.splice(index, _count);
+        return this;
+    };
+    
+    EventTarget.prototype.addOneShotListener = function(type, handler, _bubble) {
+    var bubble = !!_bubble ? _bubble : false;
+	this.addEventListener(type, function(e) {
+		e.target.removeEventListener(e.type, arguments.callee, bubble);
+		return handler(e);
+	}, bubble);
+};
+}//====PROTOTYPES====
