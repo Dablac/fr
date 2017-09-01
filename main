@@ -11,9 +11,9 @@
         this.seconds = this.delta % 60;
         this.read = function(){
             switch (true){
-                case days > 365:
+                case this.days > 365:
                     return Math.floor(+this.days/365)+' years, '+this.days%365+' days';
-                case days > 7:
+                case this.days > 7:
                     return this.days+' days';
                 default:
                     return this.days+' days, '+this.hours+' hours.';
