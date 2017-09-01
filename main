@@ -1,7 +1,7 @@
 {//====CONSTRUCTORS====
 
     function RelativeAge(date){
-        this.delta = Math.abs(Date.now() - new Date(date).getTime()) / 1000;
+        this.delta = Math.abs(Date.now() - new Date(date)) / 1000;
         this.days = Math.floor(this.delta / 86400);
         this.delta -= this.days * 86400;
         this.hours = Math.floor(this.delta / 3600) % 24;
@@ -10,7 +10,14 @@
         this.delta -= this.minutes * 60;
         this.seconds = this.delta % 60;
         this.read = function(){
-            return +this.days > 7 ? this.days+' days' : this.days+' days, '+this.hours+' hours.';
+            switch (true){
+                case days > 365:
+                    return Math.floor(+this.days/365)+' years, '+this.days%365+' days';
+                case days > 7:
+                    return this.days+' days';
+                default:
+                    return this.days+' days, '+this.hours+' hours.';
+            }
         };
     }
 
@@ -20,21 +27,22 @@
         this.handler = function(event){
             this.x = event.pageX;
             this.y = event.pageY;
-            inspectorDiv.style.left = (this.x + offset[0]) + 'px';
-            inspectorDiv.style.top = (this.y + offset[1])  + 'px';
+            attached.style.left = (this.x + offset[0]) + 'px';
+            attached.style.top = (this.y + offset[1])  + 'px';
         }.bind(this);
         window.addEventListener('mousemove', this.handler, false);
     }
 
     //LocalStorage pass by reference Object Constructor
-    function LocalStoreObject(name){
-        this.name = name;
+    function LocalStoreObject(_name, _nameSpace){
+        this.nameSpace = !_nameSpace ? 'default' : _nameSpace;
+        this.name = _name;
         this.save = function(){
-            localStorage['navi_'+this.name] = JSON.stringify(this);
+            localStorage[this.nameSpace+'_'+this.name] = JSON.stringify(this);
         };
         this.load = function(){
-            if (!!localStorage['navi_'+this.name]){
-                Object.assign(this, JSON.parse(localStorage['navi_'+this.name]));
+            if (!!localStorage[this.nameSpace+'_'+this.name]){
+                Object.assign(this, JSON.parse(localStorage[this.nameSpace+'_'+this.name]));
             }
         };
         this.load();
@@ -79,6 +87,7 @@
 }//====UTILITY====
 
 {//====PROTOTYPES====
+    //one-shot event listener
     EventTarget.prototype.addEventTrigger = function(type, handler, _bubble) {
         var bubble = !!_bubble ? _bubble : false;
         this.addEventListener(type, function(e) {
