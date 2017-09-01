@@ -71,21 +71,6 @@
 
 }//====CONSTRUCTORS====
 
-{//====UTILITY====
-    //Self-deleting recursive function
-    (function(){
-        try{
-            delete arguments.callee;
-        } catch(error){ 
-            setTimeout(arguments.callee, 0);
-        }
-    })();    
-
-    function runAtLoad(cb){
-        if (document.readyState !== 'loading') cb(); else document.addEventTrigger('DOMContentLoaded', cb, false);
-    }
-}//====UTILITY====
-
 {//====PROTOTYPES====
     //one-shot event listener
     EventTarget.prototype.addEventTrigger = function(type, handler, _bubble) {
@@ -197,3 +182,24 @@
         return this;
     };
 }//====PROTOTYPES====
+
+{//====UTILITY====
+    //Self-deleting recursive function
+    (function(){
+        try{
+            delete arguments.callee;
+        } catch(error){ 
+            setTimeout(arguments.callee, 0);
+        }
+    })();    
+
+    function runAtLoad(cb){
+        if (document.readyState !== 'loading') cb(); else document.addEventTrigger('DOMContentLoaded', cb, false);
+    }
+
+    function setCookie(name, value){
+        if (document.cookie.includes(name) && !document.cookie.includes(name+'='+value)){
+            document.cookie.replace(new RegExp('(\;\s*'+name+'\=)\w+(\;)', 'g'), '$1'+value+'$2');
+        } else document.cookie = name+'='+value;
+    }
+}//====UTILITY====
