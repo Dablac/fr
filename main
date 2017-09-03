@@ -149,23 +149,24 @@
         return !!this.parentElement ? this.parentElement.removeChild(this) : this;
     };
 
-    Element.prototype.insertAfter = function(newNode, referenceNode) {
-        referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
-    };
-
     Element.prototype.attach = function(){
         this.uncancel();
         try{
-            var prev = null;
-            var next = null;
-            Array.prototype.slice.call(this.originalParent.children).forEach(function(e, i, a){
-                console.log(e.index, this.index);
-                if (e.index > this.index){ if (!next || e.index < next.index) next = e; } else prev = e;
+            var best = {e: null, seperation: null, after: false};
+            var found = Array.prototype.slice.call(this.originalParent.children).find(function(e, i, a){
+                let diff = e.index - this.index;
+                let current = {e: e, seperation: Math.abs(diff), after: diff < 0};
+                if (!best.e || current.seperation < best.seperation || (current.seperation === best.seperation && current.after < best.after)) best = current;
+                if (current.seperation === 1 || i === a.length) return best.e;
             }.bind(this));
-            if (!!prev) this.originalParent.insertAfter(this, prev); else this.originalParent.insertBefore(this, next);
+            if (best.after) this.originalParent.insertAfter(this, found); else this.originalParent.insertBefore(this, found); 
         }catch(error){
             console.log('%o.attach() %o', this, error);
         }
+    };
+    
+    Element.prototype.insertAfter = function(newNode, referenceNode) {
+        referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
     };
 
     Element.prototype.addClass = function elementPrototypeAddClass(classToAdd){
