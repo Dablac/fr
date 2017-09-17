@@ -52,9 +52,7 @@
     //delegated event listener
     EventTarget.prototype.addDelegatedListener = function delegatedListener(method, match, eventType, handler, _bubble) {
         this.addEventListener(eventType, function(event) {
-            if (event.target && (event.target[method] === match || event.target.parentElement[method](match) === event.target)) {
-                return handler(event);
-            }
+            if (event.target && (event.target[method] === match || (event.target[method].constructor === String && event.target[method].includes(match)) || (event.target[method].constructor === DOMTokenList && event.target[method].contains(match)) || (typeof event.target.parentElement[method] === 'function' && event.target.parentElement[method](match) === event.target))) return handler(event);
         }, !!_bubble ? _bubble : false);
     };
 
@@ -66,17 +64,17 @@
             return handler(e);
         }, bubble);
     };
-    
+
     //argument only bind
     Function.prototype.arg = function() {
-    var slice = Array.prototype.slice,
-        args = slice.call(arguments), 
-        fn = this, 
-        partial = function() {
-            return fn.apply(this, args.concat(slice.call(arguments)));
-        };
-    partial.prototype = Object.create(this.prototype);
-    return partial;
+        var slice = Array.prototype.slice,
+            args = slice.call(arguments), 
+            fn = this, 
+            partial = function() {
+                return fn.apply(this, args.concat(slice.call(arguments)));
+            };
+        partial.prototype = Object.create(this.prototype);
+        return partial;
     };
 
     //RegExp, String or Index based slice
