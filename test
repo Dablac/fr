@@ -1,1 +1,1 @@
-import * as fr from https://github.com/Dablac/fr/blob/master/main.js
+import * as fr from 'https://github.com/Dablac/fr/blob/master/main.js';
