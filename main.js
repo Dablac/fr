@@ -134,7 +134,7 @@
     };
 
     Element.prototype.uncancel = function(){
-        this.querySelectorAll('[cancelled-src]').forEach(function(e,i,a){
+        this.querySelectorAll('[data-cancelled-src]').forEach(function(e,i,a){
             e.src = e.dataset.cancelledSrc;
             e.dataset.cancelledSrc = '';
         });
