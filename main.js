@@ -1,5 +1,4 @@
 {//====CONSTRUCTORS====
-
     function RelativeAge(date){
         this.delta = Math.abs(Date.now() - new Date(date)) / 1000;
         this.days = Math.floor(this.delta / 86400);
@@ -47,31 +46,18 @@
         };
         this.load();
     }
-
-    //non-functioning wrapper intended to queue function calls and only execute them while the page is visible
-    function IsVisible(){
-        this.visible = document.visibilityState === 'visible';
-        this.queue = [];
-        this.add = function runOrQueue(func){
-            if (this.visible) func(); else this.queue.push(func);
-        };
-        this.processQueue = function(){
-            console.log('processQueue: this.visible = %o, this.queue = %o', this.visible, this.queue);
-            while (this.visible){
-                if (this.queue.length > 0){
-                    this.queue.shift()();
-                }
-            }
-        };
-        document.addEventListener('visibilitychange', function(event){
-            this.visible = document.visibilityState === 'visible';
-            if (this.visible) this.processQueue();
-        }.bind(this), false);
-    }
-
 }//====CONSTRUCTORS====
 
 {//====PROTOTYPES====
+    //delegated event listener
+    EventTarget.prototype.addDelegatedListener = function delegatedListener(method, match, eventType, handler, _bubble) {
+        this.addEventListener(eventType, function(event) {
+            if (event.target && (event.target[method] === match || event.target.parentElement[method](match) === event.target)) {
+                return handler(event);
+            }
+        }, !!_bubble ? _bubble : false);
+    };
+
     //one-shot event listener
     EventTarget.prototype.addEventTrigger = function(type, handler, _bubble) {
         var bubble = !!_bubble ? _bubble : false;
@@ -79,6 +65,18 @@
             e.target.removeEventListener(e.type, arguments.callee, bubble);
             return handler(e);
         }, bubble);
+    };
+    
+    //argument only bind
+    Function.prototype.arg = function() {
+    var slice = Array.prototype.slice,
+        args = slice.call(arguments), 
+        fn = this, 
+        partial = function() {
+            return fn.apply(this, args.concat(slice.call(arguments)));
+        };
+    partial.prototype = Object.create(this.prototype);
+    return partial;
     };
 
     //RegExp, String or Index based slice
@@ -138,7 +136,7 @@
     };
 
     Element.prototype.uncancel = function(){
-        this.querySelectorAll('[data-cancelled-src]').forEach(function(e,i,a){
+        this.querySelectorAll('[cancelled-src]').forEach(function(e,i,a){
             e.src = e.dataset.cancelledSrc;
             e.dataset.cancelledSrc = '';
         });
@@ -164,7 +162,7 @@
             console.log('%o.attach() %o', this, error);
         }
     };
-    
+
     Element.prototype.insertAfter = function(newNode, referenceNode) {
         referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
     };
@@ -185,14 +183,29 @@
 }//====PROTOTYPES====
 
 {//====UTILITY====
-    //Self-deleting recursive function
-    (function(){
+    function recurseWrapper(fn, looptime, cb){
         try{
-            delete arguments.callee;
-        } catch(error){ 
-            setTimeout(arguments.callee, 0);
+            switch (true){
+                case !this.timeout:
+                    this.timeout = [];
+                case !this.timeout[fn.name+'Timeout']:
+                    this.timeout[fn.name+'Timeout'] = null;
+                default:
+                    clearTimeout(this.timeout[fn.name+'Timeout']);
+                    this.timeout[fn.name+'Timeout'] = null;
+                    break;
+            }
+            let result = fn();
+            if (!!result && result !== this.timeout[fn.name+'Timeout']){
+                cb(result);
+                return result; 
+            } else throw 'no result';
+        }catch (error){
+            console.log('%o %o', fn.name, error);
+            this.timeout[fn.name+'Timeout'] = setTimeout(arguments.callee.bind(this, fn, looptime, cb), looptime);
+            return this.timeout[fn.name+'Timeout'];
         }
-    })();    
+    }
 
     function runAtLoad(cb){
         if (document.readyState !== 'loading') cb(); else document.addEventTrigger('DOMContentLoaded', cb, false);
