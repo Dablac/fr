@@ -1,0 +1,198 @@
+// ==UserScript==
+// @name         SaveTimeOnReload
+// @include      *.mp4*
+// @include      *
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @require      https://raw.githubusercontent.com/Dablac/HTMLInjector/testing/injector.js
+// @require      https://raw.githubusercontent.com/Dablac/fr/master/main
+// ==/UserScript==
+
+EventTarget.prototype.addDelegatedListener = function delegatedListener(method, match, eventType, handler, _bubble) {
+    this.addEventListener(eventType, function(event) {
+        if (event.target && (event.target[method] === match || event.target.parentElement[method](match) === event.target)) {
+            return handler(event);
+        }
+    }, !!_bubble ? _bubble : false);
+};
+
+document.body.addDelegatedListener('querySelector', 'a[href]', 'mousedown', function(event){
+    //console.log('delegatedEvent test: target = %o, event.button = %o', event. target, event.button);
+    if (event.button === 0) location.href = event.target.href;
+});
+
+var loopTime = 100;
+var loopTimeSmallestDiv = (loopTime/100)/1000;
+var topUrl = GM_getValue('topUrl');
+var url = (window.location != window.parent.location) ? (!topUrl ? document.referrer : topUrl) : document.location.href;
+var order = ['thevideo', 'yourupload', 'entervideo', ''];
+var host = null;
+
+runAtLoad(function(){
+    let style = new Injector('str');
+    style.addBase('<div id="styles">');
+    style.addChild('styles', '<style id="cursorHide"> .strHideCursor { cursor:none !important }');
+    style.addChild('styles', '<style id="cursorShow"> .strShowCursor { cursor:default !important }');
+    style.inject('beforeEnd', document.head);
+});
+
+function MouseHider(_pollPeriod){
+    this.pollPeriod = !_pollPeriod ? 10 : _pollPeriod;
+    this.delay = null;
+    this.poll = null;
+    this.kill = function(){
+        Array.prototype.slice.call(document.querySelectorAll('[style*="cursor"]')).forEach(function(e,i,a){
+            e.style.cursor = '';
+        });
+    };
+    this.pollEnd = function(){
+        clearTimeout(this.poll);
+        this.poll = null;
+    };
+    this.hide = function(event){
+        //console.log('mousemove: %o cursor = %o', event.target, window.getComputedStyle(event.target).cursor);
+        document.body.removeClass('strShowCursor');
+        document.body.addClass('strHideCursor');
+        if (!event.target.dataset.strNormalCursor){
+            var postHide = window.getComputedStyle(event.target).cursor;
+            if (postHide !== 'none'){
+                event.target.dataset.strNormalCursor = postHide;
+                event.target.style.cursor = 'none';
+            }
+        } else event.target.style.cursor = 'none';
+    };
+    this.show = function(event){
+        document.body.removeClass('strHideCursor');
+        document.body.addClass('strShowCursor');
+        if (!!event.target.dataset.strNormalCursor) event.target.style.cursor = event.target.dataset.strNormalCursor;
+    };
+    this.handler = function(event){
+        if (!!this.poll) return; else{ 
+            this.show(event);
+            clearTimeout(this.delay);
+            this.delay = null;
+            this.delay = setTimeout(this.hide.bind(this, event), 500);
+            this.poll = setTimeout(this.pollEnd.bind(this), this.pollPeriod);
+        }
+    }.bind(this);
+    window.addEventListener('mousemove', this.handler, false);
+}
+
+
+function inIframe () {
+    try {
+        return window.self !== window.top;
+    } catch (e) {
+        return true;
+    }
+}
+
+function caseSelect(vid, lastTime){
+    switch (true){
+        case !+GM_getValue(url) || !+localStorage[location.href]:
+            localStorage[location.href] = vid.currentTime;
+            return vid.currentTime;
+        case vid.currentTime < +localStorage[location.href]:
+            if (vid.currentTime < lastTime && lastTime > 2 && vid.currentTime > 2) localStorage[location.href] = vid.currentTime; else vid.currentTime = localStorage[location.href];
+            return vid.currentTime;
+        case vid.currentTime === +localStorage[location.href]:
+            return vid.currentTime;
+        case vid.currentTime > (+localStorage[location.href]+loopTimeSmallestDiv):
+            localStorage[location.href] = vid.currentTime;
+            return vid.currentTime;
+    }
+}
+
+function saveTime(vid, loop, lastTime){
+    var finished = vid.currentTime === vid.duration;
+    GM_setValue(url, caseSelect(vid, lastTime));
+    //console.log('running setTime: vid.currentTime = %o, +localStorage[%o] = %o, GM_getValue(url) = %o', vid.currentTime, location.href, +localStorage[location.href], GM_getValue(url));
+    if (loop && !finished) setTimeout(setTime.bind(this, vid, loop, vid.currentTime), loopTime);
+}
+
+function getTime(loop){
+    localStorage[url] = GM_getValue(url);
+    //console.log('getTime: location.href = %o, GM_getValue(%o) = %o', location.href, url, GM_getValue(url));
+    if (loop) setTimeout(getTime.bind(this, loop), loopTime);
+}
+
+function findExisting(e, i, a){
+    return !!document.querySelector('#les-content > a[data-embed-src*="'+e+'"]');
+}
+
+function findCurrent(e, i, a){
+    return location.href.includes(e);
+}
+
+function chooseSrc(){
+    try{
+        host = order[order.findIndex(findExisting)];
+        document.querySelector('#les-content > a[data-embed-src*="'+host+'"]').click();
+    } catch (error){
+        console.log("chooseSrc %o", error);
+        setTimeout(run, 100);
+    }
+}
+
+(function run() {
+    console.log('window at %o = %o, url = %o, inIframe() = %o', location.href, window, url, inIframe());
+    try{
+        let inFrame = inIframe();
+        let vid = document.querySelector('video');
+        if (!inFrame){
+            GM_setValue('topUrl', location.href);
+            url = (window.location != window.parent.location) ? (!location.href ? document.referrer : location.href) : document.location.href;
+            console.log('running in top window: localStorage[%o] = %o, GM_getValue(%o) = %o', location.href, localStorage[location.href], url, GM_getValue(url));
+            if (location.href.includes('lavamovies.com')) chooseSrc();
+            getTime(true);
+        } else if (inFrame || !!vid && location.href === GM_getValue('topUrl')){
+            host = order[order.findIndex(findCurrent)];
+            console.log('host = %o', host);
+            switch(host){
+                case 'thevideo':
+                    var res = document.querySelector('#vplayer > div.vjs-control-bar > div.vjs-menu-button.vjs-menu-button-popup.vjs-control.vjs-button.vjs-resolution-button > div > ul > li:nth-child(1)');
+                    if (!!res) res.click();
+                    vid.parentElement.style.overflow = 'hidden';
+                    break;
+                case 'yourupload':
+                    if(!location.href.includes('mushroom')){
+                        clearTimeout(window.pollVid);
+                        window.pollVid = null;
+                        console.log('vid = %o', vid);
+                        if (!vid) vid = document.querySelector('video');
+                        if (!vid) window.pollVid = setTimeout(run, 1000);
+                        let crap = document.getElementsByClassName('fp-logo')[0];
+                        if (!!crap) crap.remove();
+                    }
+                    break;
+            }
+            if(!!vid){
+                console.log('running in frame: localStorage[%o] = %o, GM_getValue(%o) = %o', location.href, localStorage[location.href], url, GM_getValue(url));
+                vid.addEventListener('timeupdate', function eventSetTime(event){
+                    if (!event.target.lastTime) event.target.lastTime = 0;
+                    event.target.finished = event.target.currentTime === event.target.duration;
+                    GM_setValue(url, caseSelect(event.target, event.target.lastTime));
+                    //console.log('running %o: currentTime = %o, lastTime = %o, Δt = %o, +localStorage[%o] = %o, GM_getValue(url) = %o', arguments.callee.name, event.target.currentTime, event.target.lastTime, event.target.currentTime-event.target.lastTime, location.href, +localStorage[location.href], GM_getValue(url));
+                    event.target.lastTime = event.target.currentTime;
+                }, false);
+                switch (true){
+                    case !localStorage[location.href]:
+                        localStorage[location.href] = 0;
+                    case +GM_getValue(url) > +localStorage[location.href]:
+                        localStorage[location.href] = GM_getValue(url);
+                        break;
+                }
+                window.addEventListener('beforeunload', saveTime.bind(this, vid, false), false);
+            }
+        }
+    } catch (error){
+        console.log("SaveTimeOnReload %o", error);
+        setTimeout(run, 1000);
+    } finally {
+        var hider = new MouseHider(50);
+        if (GM_getValue(url) === 'undefined'){
+            console.log('novid: GM_getValue(url) = %o', GM_getValue(url));
+            setTimeout(run, 1000);
+        } else hider.kill();
+    }
+})();
