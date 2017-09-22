@@ -50,9 +50,27 @@
 
 {//====PROTOTYPES====
     //delegated event listener
-    EventTarget.prototype.addDelegatedListener = function delegatedListener(method, match, eventType, handler, _bubble) {
+    EventTarget.prototype.addDelegatedListener = function delegatedListener(selector, eventType, handler, _bubble) {
         this.addEventListener(eventType, function(event) {
-            if (event.target && (event.target[method] === match || (event.target[method].constructor === String && event.target[method].includes(match)) || (event.target[method].constructor === DOMTokenList && event.target[method].contains(match)) || (typeof event.target.parentElement[method] === 'function' && event.target.parentElement[method](match) === event.target))) return handler(event);
+            if (event.target[handler.name+"Delegate"] !== 'false'){
+                if (!event.target[handler.name+"Delegate"]){
+                    if (!!event.target){
+                        if (event.target.matches(selector)){
+                            event.target[handler.name+"Delegate"] = event.target;
+                            return handler(event, event.target);
+                        } else {
+                            let relative = null;
+                            let ancestor = event.target.closest(selector);
+                            if (!!ancestor) relative = ancestor; else{
+                                let descendant = event.target.querySelector(selector);
+                                if (!!descendant && descendant.contains(event.target)) relative = descendant; else relative = false;
+                            }
+                            event.target[handler.name+"Delegate"] = relative;
+                            if (!!relative) return handler(event, relative);
+                        }
+                    }
+                } else return handler(event, event.target[handler.name+"Delegate"]);
+            }
         }, !!_bubble ? _bubble : false);
     };
 
