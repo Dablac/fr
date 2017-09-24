@@ -196,6 +196,14 @@
         this.splice(index, _count);
         return this;
     };
+
+    Node.prototype.directRelative = function nodeDirectRelative(selector){
+        let ancestor = this.closest(selector);
+        if (!!ancestor) return ancestor; else{
+            let child = document.querySelector(selector);
+            if (child.contains(this)) return child; else return false;
+        }
+    };
 }//====PROTOTYPES====
 
 {//====UTILITY====
