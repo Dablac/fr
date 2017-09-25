@@ -200,7 +200,7 @@
         let ancestor = this.closest(selector);
         if (!!ancestor) return ancestor; else{
             let descendant = this.querySelector(selector);
-            if (descendant.contains(this)) return descendant; else return false;
+            if (this.contains(descendant)) return descendant; else return false;
         }
     };
 }//====PROTOTYPES====
