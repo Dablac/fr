@@ -47,7 +47,6 @@
         this.load();
     }
 }//====CONSTRUCTORS====
-
 {//====PROTOTYPES====
     //delegated event listener
     EventTarget.prototype.addDelegatedListener = function delegatedListener(selector, eventType, handler, _bubble) {
@@ -200,12 +199,11 @@
     Node.prototype.directRelative = function nodeDirectRelative(selector){
         let ancestor = this.closest(selector);
         if (!!ancestor) return ancestor; else{
-            let child = document.querySelector(selector);
-            if (child.contains(this)) return child; else return false;
+            let descendant = this.querySelector(selector);
+            if (descendant.contains(this)) return descendant; else return false;
         }
     };
 }//====PROTOTYPES====
-
 {//====UTILITY====
     function recurseWrapper(fn, looptime, cb){
         try{
