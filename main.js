@@ -48,8 +48,17 @@
     }
 }//====CONSTRUCTORS====
 {//====PROTOTYPES====
-    //delegated event listener
-    EventTarget.prototype.addDelegatedListener = function delegatedListener(selector, eventType, handler, _bubble) {
+    //find matching direct relative in either direction and return it
+        Node.prototype.relative = function nodeRelative(selector){
+        let ancestor = this.closest(selector);
+        if (!!ancestor) return ancestor; else{
+            let descendant = this.querySelector(selector);
+            if (!!descendant && descendant.contains(this)) return descendant; else return false;
+        }
+    };
+
+    //relative based delegated event listener
+    EventTarget.prototype.addDelegatedListener = function eventTargetAddDelegatedListener(selector, eventType, handler, _bubble) {
         this.addEventListener(eventType, function(event) {
             if (event.target[handler.name+"Delegate"] !== 'false'){
                 if (!event.target[handler.name+"Delegate"]){
@@ -58,12 +67,7 @@
                             event.target[handler.name+"Delegate"] = event.target;
                             return handler(event, event.target);
                         } else {
-                            let relative = null;
-                            let ancestor = event.target.closest(selector);
-                            if (!!ancestor) relative = ancestor; else{
-                                let descendant = event.target.querySelector(selector);
-                                if (!!descendant && descendant.contains(event.target)) relative = descendant; else relative = false;
-                            }
+                            let relative = event.target.relative(selector);
                             event.target[handler.name+"Delegate"] = relative;
                             if (!!relative) return handler(event, relative);
                         }
@@ -74,7 +78,7 @@
     };
 
     //one-shot event listener
-    EventTarget.prototype.addEventTrigger = function(type, handler, _bubble) {
+    EventTarget.prototype.addEventTrigger = function eventTargetAddEventTrigger(type, handler, _bubble) {
         var bubble = !!_bubble ? _bubble : false;
         this.addEventListener(type, function(e) {
             e.target.removeEventListener(e.type, arguments.callee, bubble);
@@ -83,7 +87,7 @@
     };
 
     //argument only bind
-    Function.prototype.arg = function() {
+    Function.prototype.arg = function functionArg() {
         var slice = Array.prototype.slice,
             args = slice.call(arguments), 
             fn = this, 
@@ -95,7 +99,7 @@
     };
 
     //RegExp, String or Index based slice
-    String.prototype.cut = function(start, end, _includeIdentifiers){
+    String.prototype.cut = function stringCut(start, end, _includeIdentifiers){
         //includeIdentifiers = [true/false, true/false] to include the values found by the String/RegExp expression at 'start' and 'end' respectively.
         var includeIdentifiers = !!_includeIdentifiers ? _includeIdentifiers: [false, false];
         var _start = null;
@@ -125,15 +129,7 @@
         } else return this.slice(_start);
     };
 
-    String.prototype.cut = function(start, end, includeEndString){
-        let _start = start.constructor === RegExp ? this.search(start)+this.match(start)[0].length : (start.constructor === String ? this.indexOf(start)+start.length : start);
-        if (!!end){
-            let _end = end.constructor === RegExp ? this.search(end) : (end.constructor === String ? (!includeEndString ? this.indexOf(end, _start) : this.indexOf(end, _start)+end.length) : end);
-            return this.slice(_start, (+_end > 0 ? _end : this.length));
-        } else return this.slice(_start);
-    };
-
-    String.prototype.splice = function spliceSlice(index, count, add) {
+    String.prototype.splice = function stringSplice(index, count, add) {
         if (index < 0) {
             index = this.length + index;
             if (index < 0) {
@@ -143,26 +139,26 @@
         return this.slice(0, index) + (add || "") + this.slice(index + count);
     };
 
-    Element.prototype.cancel = function(){
+    Element.prototype.cancel = function elementCancel(){
         this.querySelectorAll('[src]').forEach(function(e,i,a){
             e.dataset.cancelledSrc = e.src;
             e.src = '';
         });
     };
 
-    Element.prototype.uncancel = function(){
+    Element.prototype.uncancel = function elementUncancel(){
         this.querySelectorAll('[data-cancelled-src]').forEach(function(e,i,a){
             e.src = e.dataset.cancelledSrc;
             e.dataset.cancelledSrc = '';
         });
     };
 
-    Element.prototype.detach = function(){
+    Element.prototype.detach = function elementDetach(){
         this.cancel();
         return !!this.parentElement ? this.parentElement.removeChild(this) : this;
     };
 
-    Element.prototype.attach = function(){
+    Element.prototype.attach = function elementAttach(){
         this.uncancel();
         try{
             var best = {e: null, seperation: null, after: false};
@@ -178,30 +174,22 @@
         }
     };
 
-    Element.prototype.insertAfter = function(newNode, referenceNode) {
+    Element.prototype.insertAfter = function elementInsertAfter(newNode, referenceNode) {
         referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
     };
 
-    Element.prototype.addClass = function elementPrototypeAddClass(classToAdd){
+    Element.prototype.addClass = function elementAddClass(classToAdd){
         if (!this.classList.contains(classToAdd)) this.classList.add(classToAdd);
     };
 
-    Element.prototype.removeClass = function elementPrototypeRemoveClass(classToRemove){
+    Element.prototype.removeClass = function elementRemoveClass(classToRemove){
         if (this.classList.contains(classToRemove)) this.classList.remove(classToRemove);
     };
 
-    Array.prototype.erase = function(index, count){
+    Array.prototype.erase = function arrayErase(index, count){
         var _count = count || 1;
         this.splice(index, _count);
         return this;
-    };
-
-    Node.prototype.directRelative = function nodeDirectRelative(selector){
-        let ancestor = this.closest(selector);
-        if (!!ancestor) return ancestor; else{
-            let descendant = this.querySelector(selector);
-            if (this.contains(descendant)) return descendant; else return false;
-        }
     };
 }//====PROTOTYPES====
 {//====UTILITY====
