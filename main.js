@@ -11,11 +11,12 @@
         this.read = function(){
             switch (true){
                 case this.days > 365:
-                    return Math.floor(+this.days/365)+' years, '+this.days%365+' days';
+                    let years = Math.floor(+this.days/365);
+                    return years+' year'+(years > 1 ? 's' : '')+', '+this.days%365+' day'+(this.days%365 > 1 ? 's' : '');
                 case this.days > 7:
-                    return this.days+' days';
+                    return this.days+' day'+(this.days > 1 ? 's' : '');
                 default:
-                    return this.days+' days, '+this.hours+' hours.';
+                    return this.days+' day'+(this.days > 1 ? 's' : '')+', '+this.hours+' hour'+(this.hours > 1 ? 's' : '')+'.';
             }
         };
     }
