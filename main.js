@@ -233,7 +233,7 @@ function recurseInput(getInput, verifyInput, useInputCallback, looptime, count, 
 }
 
 function runAtLoad(cb){
-    if (document.readyState !== 'loading') cb(); else document.addEventListener('readystatechange', evt=>{ if (document.readyState !== 'loading') cb(); }, false);
+    if (document.readyState !== 'loading') cb(); else document.addEventTrigger('readystatechange', evt=>{ if (document.readyState !== 'loading') cb(); }, false);
 }
 
 function setCookie(name, value){
