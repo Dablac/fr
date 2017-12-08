@@ -1,0 +1,555 @@
+// ==UserScript==
+// @name         SaveTimeOnReload
+// @include      *lavamovies.*
+// @include      *streamango.*
+// @include      *ont-assets-1.finalservers.*
+// @include      *googleusercontent.*
+// @include      *lavacdn.*
+// @include      *entervideo.*
+// @include      *solarmovie.*
+// @include      *oload.*
+// @include      *onitube.*
+// @include      *rapidvideo.*
+// @include      *otakustream.*
+// @include      *mp4upload.*
+// @include      *
+// @include      *dailymotion.com
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_addValueChangeListener
+// @grant        focus
+// @require      https://raw.githubusercontent.com/Dablac/HTMLInjector/testing/injector.js
+// @require      https://raw.githubusercontent.com/Dablac/fr/master/main.js
+// ==/UserScript==
+
+let ignoreFragments = ['marvel', 'dc', 'watch', '20[0-9]{2,2}'];
+let ignore = new RegExp(ignoreFragments.join('|'), 'gi');
+var loopTime = 400;
+var loopTimeSmallestDiv = (loopTime/100)/1000;
+var topUrl = GM_getValue('topUrl');
+var url = (window.location != window.parent.location) ? (!topUrl ? document.referrer : topUrl) : document.location.href;
+var order = ['streamango', 'oload', 'thewatchseries', 'thevideo', 'yourupload', 'entervideo', ''];
+var vidDomains = ['lavacdn.xyz', 'openload.co', 'streamango.com', 'solarmovie.today', 'oload.stream', 'dailymotion.com', 'www.rapidvideo.com', 'mp4upload.com'];
+var host = !localStorage['[HOST]'+url] ? null : localStorage['[HOST]'+url];
+var resumeSet = false;
+
+Element.prototype.detach = function elementDetach(){
+    this.cancel();
+    this.originalParent = this.parentElement;
+    return !!this.parentElement ? this.parentElement.removeChild(this) : this;
+};
+
+function recurseCheck(fn, verifyfn, looptime, cb, count, limit){
+    let validArgs = ['function', 'function', 'number', 'function', 'number', 'number'];
+    try{
+        switch (true){
+            case !this.timeout:
+                this.timeout = [];
+                /* falls through */
+            case !this.timeout[fn.name+'Timeout']:
+                this.timeout[fn.name+'Timeout'] = null;
+                /* falls through */
+            default:
+                clearTimeout(this.timeout[fn.name+'Timeout']);
+                this.timeout[fn.name+'Timeout'] = null;
+                break;
+        }
+        let result = fn();
+        if (!result) throw 'no result'; else
+            if (!!result && result !== this.timeout[fn.name+'Timeout']){
+                if (verifyfn(result)) cb(result);
+                return result;
+
+            }
+    }catch (error){
+        console.info('[%o/%o] %o %O', ++count, limit, fn.name, error);
+        if (count < limit && Array.from(arguments).every((arg, i) => typeof arg === validArgs[i])){
+            this.timeout[fn.name+'Timeout'] = setTimeout(arguments.callee.bind(this, fn, verifyfn, looptime, cb, count++, limit), looptime);
+            return this.timeout[fn.name+'Timeout'];
+        }
+    }
+}
+
+runAtLoad(function(){
+    let style = new Injector('str');
+    style.addBase('<div id="styles">');
+    style.addChild('styles', '<style id="cursorHideStyle"> .strHideCursor { cursor:none !important }');
+    style.addChild('styles', '<style id="cursorShowStyle"> .strShowCursor { cursor:default !important }');
+    style.addChild('styles', '<style id="progressBarTransparentStyle"> div.vjs-progress-control.vjs-control, .vjs-control-bar { opacity:0.4; }');
+    style.addChild('styles', '<style id="replacementFrameStyle"> iframe.replacementFrameClass { width:100%; height:100%; margin:0px; padding:0px; border:0px; }');
+    style.addChild('styles', '<style id="killAdStyle"> div#info { display:none !important;}');
+
+
+    style.inject('beforeEnd', document.head);
+});
+
+function PolledEvent(target, eventType, eventHandler, bubbling, _pollPeriod){
+    this.poll = null;
+    this.pollPeriod = !_pollPeriod ? 50 : _pollPeriod;
+    this.pollEnd = event => {
+        clearTimeout(this.poll);
+        this.poll = null;
+    };
+    this.handler = event=>{
+        if (this.poll === null){
+            this.eventHandler.call(event);
+            this.poll = setTimeout(this.pollEnd, this.pollPeriod);
+        } else return;
+    };
+    target.addEventListener(eventType, this.handler, bubbling);
+}
+
+function MouseHider(_delayPeriod, _pollPeriod){
+    this.delayPeriod = !_delayPeriod ? 500 : _delayPeriod;
+    this.pollPeriod = !_pollPeriod ? 50 : _pollPeriod;
+    this.delay = null;
+    this.poll = null;
+    this.kill = function(){
+        Array.prototype.slice.call(document.querySelectorAll('[style*="cursor"]')).forEach(function(e,i,a){
+            e.style.cursor = '';
+        });
+    };
+    this.pollEnd = function(){
+        clearTimeout(this.poll);
+        this.poll = null;
+    };
+    this.hide = function mouseHiderHide(event){
+        //console.log('mousemove: %o cursor = %o', event.target, window.getComputedStyle(event.target).cursor);
+        document.body.removeClass('strShowCursor');
+        document.body.addClass('strHideCursor');
+        if (!event.target.dataset.strNormalCursor){
+            var postHide = window.getComputedStyle(event.target).cursor;
+            if (postHide !== 'none'){
+                event.target.dataset.strNormalCursor = postHide;
+                event.target.style.cursor = 'none';
+            }
+        } else event.target.style.cursor = 'none';
+    };
+    this.show = function mouseHiderShow(event){
+        document.body.removeClass('strHideCursor');
+        document.body.addClass('strShowCursor');
+        if (!!event.target.dataset.strNormalCursor) event.target.style.cursor = event.target.dataset.strNormalCursor;
+    };
+    this.handler = function(event){
+        if (!!this.poll) return; else{
+            this.show(event);
+            clearTimeout(this.delay);
+            this.delay = null;
+            this.delay = setTimeout(this.hide.bind(this, event), this.delayPeriod);
+            this.poll = setTimeout(this.pollEnd.bind(this), this.pollPeriod);
+        }
+    }.bind(this);
+    window.addEventListener('mousemove', this.handler, false);
+}
+
+function caseSelect(vid){
+    switch (true){
+            /* jshint ignore:start */
+        case !+GM_getValue(url) || !+localStorage[location.href]:
+            localStorage[location.href] = vid.currentTime;
+            return vid.currentTime;
+            /* jshint ignore:end */
+        case vid.currentTime < +localStorage[location.href]:
+            if (vid.currentTime < vid.lastTime && vid.lastTime > 2 && vid.currentTime > 2) localStorage[location.href] = vid.currentTime; else vid.currentTime = localStorage[location.href];
+            return vid.currentTime;
+        case vid.currentTime === +localStorage[location.href]:
+            return vid.currentTime;
+        case vid.currentTime > (+localStorage[location.href]+loopTimeSmallestDiv):
+            localStorage[location.href] = vid.currentTime;
+            return vid.currentTime;
+    }
+}
+
+function saveTime(vid, loop){
+    vid.finished = vid.currentTime === vid.duration;
+    if (loop){
+        clearTimeout(this[arguments.callee.name+'Timeout']);
+        this[arguments.callee.name+'Timeout'] = null;
+        if (document.visibilityState !== 'visible') document.addEventTrigger('visibilitychange', saveTime.bind(this, vid, loop), false); else
+            if (!vid.finished) this[arguments.callee.name+'Timeout'] = setTimeout(saveTime.bind(this, vid, loop), loopTime);
+    }
+    GM_setValue(url, caseSelect(vid));
+    vid.lastTime = vid.currentTime;
+    vid.volume = 1;
+}
+
+function saveTimeHandler(event){
+    event.target.finished = event.target.currentTime === event.target.duration;
+    GM_setValue(url, caseSelect(event.target));
+    event.target.lastTime = event.target.currentTime;
+}
+
+
+function getTime(loop){
+    if (loop){
+        clearTimeout(this[arguments.callee.name+'Timeout']);
+        this[arguments.callee.name+'Timeout'] = null;
+        if (document.visibilityState !== 'visible') document.addEventTrigger('visibilitychange', getTime.bind(this, loop), false); else
+            this[arguments.callee.name+'Timeout'] = setTimeout(getTime.bind(this, loop), loopTime);
+    }
+    localStorage[url] = GM_getValue(url);
+    //console.log('getTime: location.href = %o, GM_getValue(%o) = %o', location.href, url, GM_getValue(url));
+}
+
+function findExisting(e, i, a){
+    return !!document.querySelector('#les-content > a[data-embed-src*="'+e+'"]');
+}
+
+function findCurrent(e, i, a){
+    return location.href.includes(e);
+}
+
+function chooseSrc(run){
+    try{
+        host = order[order.findIndex(findExisting)];
+        document.querySelector('#les-content > a[data-embed-src*="'+host+'"]').click();
+    } catch (error){
+        console.log("chooseSrc %o", error);
+        setTimeout(run, 100);
+    }
+}
+
+function resumeHandler(fn){
+    if (!resumeSet){
+        console.log('pausing');
+        document.addEventTrigger('visibilitychange', fn, false);
+        resumeSet = true;
+    }
+}
+
+function KeyboardControl(_vid, _offset, _skip){
+    console.log(this);
+    this.log = false;
+    this.vid = _vid;
+    this.offset = !_offset ? 0 : +_offset;
+    this.skip = !_skip ? 90 : +_skip;
+    this.small = 10 - this.offset;
+    this.large = 60;
+    this.click = 5;
+    this.scroll = 5;
+    this.middleClicked = false;
+    this.vid.addEventListener('contextmenu', event=>event.preventDefault(), false);
+    this.handler = {
+        keyboard: e=>{
+            if (this.log) console.log('e.keyCode = %O, this.vid = %O, e.target = %O', e.keyCode, this.vid, e.target);
+            switch (e.keyCode) {
+                case 46:
+                case 110:
+                    //skip
+                    if (this.log) console.log('%o pressed, currentTime %o seconds; target = %O', 'skip', this.skip, this.vid);
+                    this.vid.currentTime += this.skip;
+                    break;
+                case 32:
+                    //space
+                    this.vid.paused = !this.vid.paused;
+                    if (this.log) console.log('%o pressed, video %o; target = %O', 'space', (this.vid.paused ? 'unpaused' : 'paused'), this.vid);
+                    break;
+                case 37:
+                case 100:
+                    //left
+                    if (this.log) console.log('%o pressed, currentTime %o seconds; target = %O', 'left', -10, this.vid);
+                    this.vid.currentTime -= this.small;
+                    break;
+                case 38:
+                case 104:
+                    //up
+                    if (this.log) console.log('%o pressed, currentTime %o seconds; target = %O', 'up', 60, this.vid);
+                    this.vid.currentTime += this.large;
+                    break;
+                case 39:
+                case 102:
+                    //right
+                    if (this.log) console.log('%o pressed, currentTime %o seconds; target = %O', 'right', 10, this.vid);
+                    this.vid.currentTime += this.small;
+                    break;
+                case 40:
+                case 98:
+                    //down
+                    if (this.log) console.log('%o pressed, currentTime %o seconds; target = %O', 'down', -60, this.vid);
+                    this.vid.currentTime -= this.large;
+                    break;
+                case 70:
+                    //F
+                    this.vid.webkitRequestFullscreen();
+                    break;
+            }
+            saveTime(this.vid, false);
+        },
+        mouse: event=>{
+            if (this.log) console.log('%o click: event = %O, event.isFake = %o', ['left', 'middle', 'right'][event.button], event, event.isFake);
+            switch(event.button){
+                case 1:
+                    event.preventDefault();
+                    if (!event.isFake){
+                        this.vid.currentTime += this.skip;
+                        let newEvent = new event.constructor(event.type, event);
+                        newEvent.isFake = true;
+                        console.log(newEvent, newEvent.isFake);
+                        event.target.dispatchEvent(newEvent);
+                    }
+                    break;
+                case 2:
+                    this.vid.currentTime -= this.click;
+                    break;
+                default:
+                    break;
+            }
+            saveTime(this.vid, false);
+        },
+        scroll: event=>{
+            event.preventDefault();
+            this.vid.currentTime += event.deltaY > 0 ? -this.scroll : this.scroll;
+            saveTime(this.vid, false);
+        }
+    };
+    document.addEventListener('keydown', this.handler.keyboard, false);
+    document.addEventListener('mousedown', this.handler.mouse, false);
+    document.addEventListener('wheel', this.handler.scroll, false);
+}
+
+function VideoPage() {
+    this.inFrame = (function inIframe () {
+        try {
+            return window.self !== window.top;
+        } catch (e) {
+            return true;
+        }
+    })();
+    if (!!resumeSet){
+        resumeSet = false;
+        console.log('resuming');
+    }
+    this.uid = function(set){
+        if (!!document.title){
+            if (set) try {
+                let episode = document.title.match(/([sS]\d{1,2}[eE]\d{1,2}|Episode\s*\d{1,4})/ig)[0].toUpperCase();
+                let series = document.title.match(/(?:(\S+))+(?=.*(?:[sS]\d{1,2}[eE]\d{1,2}|Episode\s*\d{1,4}))/g).map(function(e, i, a){
+                    console.log('test: !ignore.test(%o) %o = %o', e, !ignore.test(e), !ignore.test(e));
+                    if (!ignore.test(e)) return [e, document.body.innerHTML.match(new RegExp(e, 'gi')).length];
+                }).filter(object => !!object)/*.sort((a, b) => a[1] - b[1])*/.map(obj => obj[0]).join(' ');
+                console.log(series);
+                url = series+'|'+episode;
+                GM_setValue('topUrl', url);
+            } catch (err){
+                this.topUrl(set, true);
+            }
+            return GM_getValue('topUrl');
+        } else this.topUrl(set, true);
+    };
+    this.topUrl = function setGetTopUrl(set, fallback){
+        if (fallback){
+            if (set){
+                url = (window.location != window.parent.location) ? (!location.href ? document.referrer : location.href) : document.location.href;
+                GM_setValue('topUrl', url);
+                document.addEventTrigger('visibilitychange', function(event){
+                    if (document.visibilityState === 'visible') this.topUrl(true);
+                }.bind(this), false);
+            }
+            return GM_getValue('topUrl');
+        } else return this.uid(set);
+    };
+
+    this.replaceFrame = frame => {
+        frame.detach();
+        let ifrm = document.createElement("iframe");
+        ifrm.setAttribute("src", frame.src);
+        //ifrm.classList = frame.classList;
+        ifrm.classList.add('replacementFrameClass');
+        ifrm.setAttribute('allowfullscreen', true);
+        ifrm.setAttribute('webkitallowfullscreen', true);
+        ifrm.isReplacementFrame = true;
+        frame.originalParent.appendChild(ifrm);
+    };
+    this.createObserver = function createObserver(target, addedFn){
+        return new MutationObserver(mutations => mutations.forEach(mutation => {if (mutation.addedNodes.length > 0) mutation.addedNodes.forEach(addedFn);})).observe(target, {childList: true, subtree: true});
+    };
+    this.obs = this.createObserver(document.body, added=>{
+        if(added.tagName === 'IFRAME' && !added.isReplacementFrame) {
+            console.log("%O was added!, this = %o", added, this);
+            this.replaceFrame(added);
+        }
+        if (!!added.id && added.id.includes('sub-frame-error')) location.reload();
+    });
+    /*
+    this.killOverlay = this.createObserver(document.body, added=>{
+                    console.log('added = %o', added);
+                    if(added.id === 'premiumad' || added.id === 'info'){
+                        console.info('%o detected; killing', added.id);
+                        added.detach();
+                    }
+                });
+    */
+    this.desandbox = function(){
+        let frames = Array.prototype.slice.call(document.getElementsByTagName('iframe')).filter(frame => frame.src !== location.href);
+        if (!!frames) frames.forEach(this.replaceFrame);
+    };
+    this.autoFullscreen = vid => {
+        let playing = !vid.paused;
+        vid.addEventListener("mousedown", evt => { if (evt.button === 0 && vid.parentElement) vid.parentElement.querySelector('[title*="ullscreen"]').click(); }, false);
+        vid.addEventListener("playing", event => console.log('playing event = %o, target = %O, playing = %o, vid.isFullscreen = %o', event, event.target, playing, vid.isFullscreen), false);
+        vid.addEventListener("paused", event => console.log('paused event = %o, target = %O, playing = %o, vid.isFullscreen = %o', event, event.target, playing, vid.isFullscreen), false);
+    };
+    this.noframeListenerFired = false;
+    this.noframeListenerFn = function(){
+        if (!this.noframeTimeout) this.noframeTimeout = null; else {
+            clearTimeout(this.noframeTimeout);
+            this.noframeTimeout = null;
+        }
+        GM_addValueChangeListener(url, function(name, oldValue, newValue, remote) {
+            if (name === url && remote === true && newValue !== oldValue){
+                this.noframeListenerFired = true;
+                localStorage[url] = newValue;
+                //console.log('name = %o, oldValue = %o, newValue = %o, remote = %o', name, oldValue,  newValue, remote);
+            }
+        }.bind(this));
+        if (!this.noframeListenerFired) this.noframeTimeout = setTimeout(this.noframeListenerFn, 1000);
+    };
+    this.noframe = function(){
+        this.topUrl(true);
+        console.log('running in top window: localStorage[%o] = %o, GM_getValue(%o) = %o', location.href, localStorage[location.href], url, GM_getValue(url));
+        switch (document.domain){
+            case 'lavamovies.com':
+                //chooseSrc(arguments.callee);
+                document.body.addDelegatedListener('a[href*="http"]', 'mousedown', function linkFixer(event, a){
+                    if (event.button === 0) location.href = a.href;
+                }, false);
+                let crap = document.getElementById('ads');
+                if (!!crap) crap.remove();
+                break;
+            case 'solarmovie.today':
+                let player = document.getElementById('player');
+                player.click();
+                console.log('document.domain was solarmov');
+                break;
+            case 'otakustream.tv':
+                //this.deSandbox();
+                break;
+            default:
+                console.log('top window domain %o was not listed', document.domain);
+        }
+        //getTime(true);
+        this.noframeListenerFn();
+    };
+    this.skipLength = {
+        'Gintama': 87};
+    this.vidframe = function(_vid){
+        //console.log('vid at %O, vid.constructor = %o', vid, vid.constructor);
+        this.vid = _vid;
+        GM_setValue('[HOST]'+url, location.hostname);
+        this.series = url.split('|')[0];
+        this.vid.addEventListener('error', evt => {sessionStorage[location.href] = true; location.reload(); }, true);
+        let included = true;
+        this.offset = 0;
+        switch (document.domain){
+            case 'thethis.video.me':
+                var res = document.querySelector('#vplayer > div.vjs-control-bar > div.vjs-menu-button.vjs-menu-button-popup.vjs-control.vjs-button.vjs-resolution-button > div > ul > li:nth-child(1)');
+                if (!!res) res.click();
+                this.vid.parentElement.style.overflow = 'hidden';
+                break;
+            case 'yourupload.com':
+                if(!location.href.includes('mushroom')){
+                    let crap = document.getElementsByClassName('fp-logo')[0];
+                    if (!!crap) crap.remove();
+                }
+                break;
+            case 'solarmovie.today':
+                if (location.pathname.includes('/embed/')){
+                    let frame = document.querySelector('iframe');
+                    frame.style.zIndex = 2147483647;
+                    console.log('setting %o to %o', location.href, frame.src);
+                    location.href = frame.src;
+                }
+                break;
+            case 'lavacdn.xyz':
+                setCookie('jwplayer.volume', 100);
+                break;
+            case 'otakustream.tv':
+                break;
+            case 'mp4upload.com':
+                let noOutline = document.createElement('style');
+                noOutline.id = 'noOutlineStyle';
+                noOutline.type = 'text/css';
+                noOutline.innerHTML = 'div {outline:none !important;}';
+                console.info('noOutlineStyle = %O', document.head.appendChild(noOutline));
+                break;
+            case 'www.rapidvideo.com':
+                this.offset = 5;
+                this.vid.webkitallowfullscreen = true;
+                this.vid.autoplay = true;
+
+                //this.autoFullscreen(this.vid);
+                //.this.video-js .vjs-progress-control .vjs-progress-holder
+                //vjs-progress-holder vjs-slider vjs-slider-horizontal
+                /*
+                this.vid.addEventListener("playing", function(event){
+                    console.log('playing event = %o, target = %o', event, event.target);
+                    document.addEventTrigger('mousemove', this.vid.webkitRequestFullscreen, false);
+                }, false);
+                */
+                break;
+            default:
+                included = false;
+                console.log('this.vid domain %o was not listed', document.domain);
+        }
+        console.log('running in frame: localStorage[%o] = %o, GM_getValue(%o) = %o', location.href, localStorage[location.href], url, GM_getValue(url));
+        this.vid.addEventListener('timeupdate', saveTimeHandler, false);
+        this.kb = new KeyboardControl(this.vid, this.offset, !this.skipLength[this.series] ? 90 : this.skipLength[this.series]);
+        switch (true){
+            case !localStorage[location.href]:
+                localStorage[location.href] = 0;
+                /* falls through */
+            case +GM_getValue(url) > +localStorage[location.href]:
+                localStorage[location.href] = GM_getValue(url);
+                break;
+        }
+        window.addEventListener('beforeunload', saveTime.bind(this, this.vid, false), false);
+        if (sessionStorage[location.href] === 'true'){
+            this.vid.webkitRequestFullscreen();
+            sessionStorage[location.href] = false;
+        }
+        this.vid.focus();
+    };
+    this.refreshFrames = function(){
+        GM_addValueChangeListener('refresh', function(name, oldValue, newValue, remote) {
+            console.info('refresh triggered: name = %o, oldValue = %o, newValue = %o, remote = %o', name, oldValue,  newValue, remote);
+            if (newValue !== oldValue && newValue === location.href){
+                console.info('refreshing %o due to trigger', newValue);
+                if (this.inFrame) location.reload();
+            }
+        });
+    };
+    this.run = function(){
+        this.refreshFrames();
+        if (!this.timeout) this.timeout = null; else {
+            clearTimeout(this.timeout);
+            this.timeout = null;
+        }
+        try{
+            this.desandbox();
+            this.vid = document.querySelector('video');
+            if (!this.inFrame){
+                this.noframe();
+            } else if (this.inFrame || !!this.vid && location.href === this.topUrl()){
+                document.firstElementChild.style.overflow = 'hidden';
+                let rc = new recurseCheck(function recurseFn(){
+                    let vid = document.querySelector('video');
+                    console.info('vidcheck: vid = %O, location.href = %o, vidDomains.includes(%o) = %o', vid, location.href, location.hostname, vidDomains.includes(location.hostname));
+                    if (!!vid || vidDomains.includes(location.hostname)) return vid; else return 'nothing';
+                }, vid => vid.constructor === HTMLVideoElement, 500, this.vidframe.bind(this), 0, 10);
+            }
+        } catch (error){
+            console.log("SaveTimeOnReload %o", error);
+            this.timeout = setTimeout(this.run.bind(this), 1000);
+        } finally {
+            var hider = new MouseHider();
+            if (GM_getValue(url) === 'undefined'){
+                console.log('novid: GM_getValue(url) = %o', GM_getValue(url));
+                this.timeout = setTimeout(this.run.bind(this), 10000);
+            } else hider.kill();
+        }
+    };
+    if (document.visibilityState === 'visible') this.run(); else resumeHandler(this.run.bind(this));
+}
+
+var main = new VideoPage();
+console.log('main = %o', main);
